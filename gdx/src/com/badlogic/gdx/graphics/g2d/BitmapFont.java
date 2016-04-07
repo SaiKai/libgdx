@@ -40,8 +40,7 @@ import com.badlogic.gdx.utils.GdxRuntimeException;
 import com.badlogic.gdx.utils.StreamUtils;
 
 /** Renders bitmap fonts. The font consists of 2 files: an image file or {@link TextureRegion} containing the glyphs and a file in
- * the AngleCode BMFont text format that describes where each glyph is on the image. Currently only a single image of glyphs is
- * supported.
+ * the AngleCode BMFont text format that describes where each glyph is on the image.
  * <p>
  * Text is drawn using a {@link Batch}. Text can be cached in a {@link BitmapFontCache} for faster rendering of static text, which
  * saves needing to compute the location of each glyph each frame.
@@ -434,7 +433,7 @@ public class BitmapFont implements Disposable {
 		public FileHandle fontFile;
 		public boolean flipped;
 		public float padTop, padRight, padBottom, padLeft;
-		/** The distance from one line of text to the next. */
+		/** The distance from one line of text to the next. To set this value, use {@link #setLineHeight(float)}. */
 		public float lineHeight;
 		/** The distance from the top of most uppercase characters to the baseline. Since the drawing position is the cap height of
 		 * the first line, the cap height can be used to get the location of the baseline. */
@@ -558,7 +557,7 @@ public class BitmapFont implements Disposable {
 					tokens.nextToken();
 					tokens.nextToken();
 					int ch = Integer.parseInt(tokens.nextToken());
-					if (ch == -1)
+					if (ch <= 0)
 						missingGlyph = glyph;
 					else if (ch <= Character.MAX_VALUE)
 						setGlyph(ch, glyph);
@@ -626,7 +625,7 @@ public class BitmapFont implements Disposable {
 					setGlyph(' ', spaceGlyph);
 				}
 				if (spaceGlyph.width == 0) {
-					spaceGlyph.width = (int)(spaceGlyph.xadvance + padRight);
+					spaceGlyph.width = (int)(padLeft + spaceGlyph.xadvance + padRight);
 					spaceGlyph.xoffset = (int)-padLeft;
 				}
 				spaceWidth = spaceGlyph.width;
@@ -761,8 +760,8 @@ public class BitmapFont implements Disposable {
 		}
 
 		/** Returns the glyph for the specified character, or null if no such glyph exists. Note that
-		 * {@link #getGlyphs(GlyphRun, CharSequence, int, int)} should be be used to shape a string of characters into a list of
-		 * glyphs. */
+		 * {@link #getGlyphs(GlyphRun, CharSequence, int, int, boolean)} should be be used to shape a string of characters into a
+		 * list of glyphs. */
 		public Glyph getGlyph (char ch) {
 			Glyph[] page = glyphs[ch / PAGE_SIZE];
 			if (page != null) return page[ch & PAGE_SIZE - 1];
@@ -771,13 +770,20 @@ public class BitmapFont implements Disposable {
 
 		/** Using the specified string, populates the glyphs and positions of the specified glyph run.
 		 * @param str Characters to convert to glyphs. Will not contain newline or color tags. May contain "[[" for an escaped left
-		 *           square bracket. */
-		public void getGlyphs (GlyphRun run, CharSequence str, int start, int end) {
+		 *           square bracket.
+		 * @param tightBounds If true, the first {@link GlyphRun#xAdvances} entry is offset to prevent the first glyph from being
+		 *           drawn left of 0 and the last entry is offset to prevent the last glyph from being drawn right of the run
+		 *           width. */
+		public void getGlyphs (GlyphRun run, CharSequence str, int start, int end, boolean tightBounds) {
 			boolean markupEnabled = this.markupEnabled;
 			float scaleX = this.scaleX;
 			Glyph missingGlyph = this.missingGlyph;
 			Array<Glyph> glyphs = run.glyphs;
 			FloatArray xAdvances = run.xAdvances;
+
+			// Guess at number of glyphs needed.
+			glyphs.ensureCapacity(end - start);
+			xAdvances.ensureCapacity(end - start + 1);
 
 			Glyph lastGlyph = null;
 			while (start < end) {
@@ -791,7 +797,7 @@ public class BitmapFont implements Disposable {
 				glyphs.add(glyph);
 
 				if (lastGlyph == null) // First glyph.
-					xAdvances.add(glyph.fixedWidth ? 0 : -glyph.xoffset * scaleX - padLeft);
+					xAdvances.add((!tightBounds || glyph.fixedWidth) ? 0 : -glyph.xoffset * scaleX - padLeft);
 				else
 					xAdvances.add((lastGlyph.xadvance + lastGlyph.getKerning(ch)) * scaleX);
 				lastGlyph = glyph;
@@ -800,8 +806,9 @@ public class BitmapFont implements Disposable {
 				if (markupEnabled && ch == '[' && start < end && str.charAt(start) == '[') start++;
 			}
 			if (lastGlyph != null) {
-				int lastGlyphWidth = lastGlyph.fixedWidth ? lastGlyph.xadvance : lastGlyph.xoffset + lastGlyph.width;
-				xAdvances.add(lastGlyphWidth * scaleX - padRight);
+				float lastGlyphWidth = (!tightBounds || lastGlyph.fixedWidth) ? lastGlyph.xadvance
+					: lastGlyph.xoffset + lastGlyph.width - padRight;
+				xAdvances.add(lastGlyphWidth * scaleX);
 			}
 		}
 

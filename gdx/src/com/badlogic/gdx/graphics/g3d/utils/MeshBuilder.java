@@ -88,6 +88,10 @@ public class MeshBuilder implements MeshPartBuilder {
 	private int posSize;
 	/** The offset within an vertex to normal, or -1 if not available */
 	private int norOffset;
+	/** The offset within a vertex to binormal, or -1 if not available */
+	private int biNorOffset;
+	/** The offset within a vertex to tangent, or -1 if not available */
+	private int tangentOffset;
 	/** The offset within an vertex to color, or -1 if not available */
 	private int colOffset;
 	/** The size (in number of floats) of the color attribute */
@@ -173,6 +177,10 @@ public class MeshBuilder implements MeshPartBuilder {
 		posSize = a.numComponents;
 		a = attributes.findByUsage(Usage.Normal);
 		norOffset = a == null ? -1 : a.offset / 4;
+		a = attributes.findByUsage(Usage.BiNormal);
+		biNorOffset = a == null ? -1 : a.offset / 4;
+		a = attributes.findByUsage(Usage.Tangent);
+		tangentOffset = a == null ? -1 : a.offset / 4;
 		a = attributes.findByUsage(Usage.ColorUnpacked);
 		colOffset = a == null ? -1 : a.offset / 4;
 		colSize = a == null ? 0 : a.numComponents;
@@ -561,6 +569,8 @@ public class MeshBuilder implements MeshPartBuilder {
 		if (vertexTransformationEnabled) {
 			transformPosition(vertices.items, o + posOffset, posSize, positionTransform);
 			if (norOffset >= 0) transformNormal(vertices.items, o + norOffset, 3, normalTransform);
+			if (biNorOffset >= 0) transformNormal(vertices.items, o + biNorOffset, 3, normalTransform);
+			if (tangentOffset >= 0) transformNormal(vertices.items, o + tangentOffset, 3, normalTransform);
 		}
 		
 		final float x = vertices.items[o+posOffset];
@@ -1217,9 +1227,10 @@ public class MeshBuilder implements MeshPartBuilder {
 			for (int iu = 0; iu <= divisionsU; iu++) {
 				angleU = auo + stepU * iu;
 				u = 1f - us * iu;
-				curr1.position.set(MathUtils.cos(angleU) * hw * t, h, MathUtils.sin(angleU) * hd * t).mul(transform);
+				curr1.position.set(MathUtils.cos(angleU) * hw * t, h, MathUtils.sin(angleU) * hd * t);
 				curr1.normal.set(curr1.position).nor();
 				curr1.uv.set(u, v);
+				curr1.position.mul(transform);
 				tmpIndices.set(tempOffset, vertex(curr1));
 				final int o = tempOffset + s;
 				if ((iv > 0) && (iu > 0)) // FIXME don't duplicate lines and points
